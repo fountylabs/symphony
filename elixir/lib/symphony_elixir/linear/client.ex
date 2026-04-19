@@ -6,7 +6,11 @@ defmodule SymphonyElixir.Linear.Client do
   require Logger
   alias SymphonyElixir.{Config, Linear.Issue}
 
-  @issue_page_size 50
+  # Patched 2026-04-20: Linear enforces max query complexity 10,000 since ~2026-04-19.
+  # Original (50 issues × 50 inverseRelations) produced complexity 65,536 — rejected with
+  # "Query too complex". Reducing both to 10 keeps polling + blocker detection working.
+  @issue_page_size 10
+  @relation_page_size 10
   @max_error_body_log_bytes 1_000
 
   @query """
@@ -246,7 +250,7 @@ defmodule SymphonyElixir.Linear.Client do
              projectSlug: project_slug,
              stateNames: state_names,
              first: @issue_page_size,
-             relationFirst: @issue_page_size,
+             relationFirst: @relation_page_size,
              after: after_cursor
            }),
          {:ok, issues, page_info} <- decode_linear_page_response(body, assignee_filter) do
@@ -294,7 +298,7 @@ defmodule SymphonyElixir.Linear.Client do
     case graphql_fun.(@query_by_ids, %{
            ids: batch_ids,
            first: length(batch_ids),
-           relationFirst: @issue_page_size
+           relationFirst: @relation_page_size
          }) do
       {:ok, body} ->
         with {:ok, issues} <- decode_linear_response(body, assignee_filter) do
